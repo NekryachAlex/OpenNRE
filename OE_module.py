@@ -2,10 +2,33 @@ import opennre
 import pandas as pd
 from itertools import combinations
 import json
+import torch
+from opennre.encoder import BERTEntityEncoder
+from opennre.model import SoftmaxNN
 
 class my_module:
     def __init__(self):
-        self.model = opennre.get_model('wiki80_cnn_softmax').cuda()
+        # Укажите путь к вашим файлам
+        model_path = 'ckpt/nerel_rubert.pth.tar'
+        rel2id_path = 'rel2id.json'  # Файл с соотношением ID и отношений
+        pretrain_path = 'rubert-base-cased'  # Путь к предобученному rubert
+
+        # Загрузите rel2id (если у вас есть)
+        with open(rel2id_path) as f:
+            rel2id = json.load(f)
+
+        # Создайте энкодер и модель
+        sentence_encoder = BERTEntityEncoder(
+            max_length=128,  # Должно совпадать с тем, что использовалось при обучении
+            pretrain_path=pretrain_path  # Путь к rubert
+        )
+        self.model = SoftmaxNN(sentence_encoder, len(rel2id), rel2id)
+
+        # Загрузите веса (учитывая устройство: CPU/GPU)
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        checkpoint = torch.load(model_path, map_location=device)
+        self.model.load_state_dict(checkpoint['state_dict'])
+        self.model.eval()  # Переключите в режим предсказания
 
 
     def run_module(self, df: pd.DataFrame, chunk_df: pd.DataFrame):
